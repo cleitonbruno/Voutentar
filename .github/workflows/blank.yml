@@ -1,17 +1,37 @@
-name: PC Virtual Pronto
+name: RDP
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  secure-rdp:
+    runs-on: [self-hosted, windows]
 
-      - name: Instalar Tmate e Manter Sessão Ativa
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: false
-          
+    steps:
+      - name: Configurar RDP
+        shell: powershell
+        run: |
+          Set-ItemProperty `
+            -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name 'fDenyTSConnections' `
+            -Value 0
+
+          Enable-NetFirewallRule -DisplayGroup 'Remote Desktop'
+
+          Set-ItemProperty `
+            -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name 'UserAuthentication' `
+            -Value 1
+
+          Restart-Service TermService -Force
+
+      - name: Verificar RDP
+        shell: powershell
+        run: |
+          $result = Test-NetConnection -ComputerName localhost -Port 3389
+
+          if (-not $result.TcpTestSucceeded) {
+            throw 'A porta RDP 3389 não está disponível.'
+          }
+
+          Write-Host 'RDP configurado na máquina self-hosted.'
